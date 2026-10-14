@@ -119,6 +119,12 @@ test('account auth and two-client ranked match persist an authoritative replay',
     const { body: profile } = await accounts[0].agent.get('/api/profile').expect(200);
     assert.equal(profile.stats.wins, 1);
     assert.equal(profile.stats.rating, 1016);
+    const rematches = await Promise.all(sockets.map((socket) => new Promise((resolve) => socket.emit('match:rematch', {}, resolve))));
+    assert.equal(rematches[0].ok, true, rematches[0].error || 'First rematch request failed.');
+    assert.equal(rematches[1].ok, true, rematches[1].error || 'Second rematch request failed.');
+    assert.equal(rematches[0].code, rematches[1].code);
+    assert.deepEqual(rematches[0].state.players.map((item) => item.symbol), ['X', 'O']);
+    assert.equal(rematches[0].state.board.every((cell) => cell === null), true);
     await accounts[0].agent.post('/api/auth/logout').set('x-csrf-token', accounts[0].csrf).send({}).expect(200);
     await accounts[0].agent.get('/api/profile').expect(401);
   } finally {
@@ -160,11 +166,11 @@ test('quick matchmaking pairs guests and restores the same player on reconnect',
     const replacement = io(baseUrl, { extraHeaders: { Cookie: guests[0] }, transports: ['websocket'], reconnection: false });
     sockets.push(replacement);
     const restored = new Promise((resolve) => replacement.once('match:state', resolve));
+    const online = new Promise((resolve) => sockets[1].once('match:presence', resolve));
     await new Promise((resolve, reject) => { replacement.once('connect', resolve); replacement.once('connect_error', reject); });
     const restoredState = await restored;
     assert.equal(restoredState.code, queued.code);
-    const online = await new Promise((resolve) => sockets[1].once('match:presence', resolve));
-    assert.equal(online.online, true);
+    assert.equal((await online).online, true);
   } finally {
     for (const socket of sockets) socket.disconnect();
   }

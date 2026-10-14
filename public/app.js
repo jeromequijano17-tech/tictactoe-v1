@@ -343,7 +343,9 @@ function perfectMove(board) {
 function startLocalAI() {
   const size = Number($('input[name="board-size"]:checked').value);
   localAI = true; mySymbol = 'X'; matchCode = '';
-  aiDifficulty = $('#ai-difficulty').value;
+  const selectedDifficulty = $('#ai-difficulty').value;
+  aiDifficulty = size === 3 || selectedDifficulty === 'easy' ? selectedDifficulty : 'medium';
+  if (selectedDifficulty === 'perfect' && size !== 3) toast('Unbeatable practice is available on the 3 × 3 board. Using tactical AI here.');
   matchState = { code: 'PRACTICE', mode: 'casual', size, board: Array(size * size).fill(null), turn: 'X', status: 'active', gameStatus: 'playing', winner: null, moves: [], players: [{ name: player.name, symbol: 'X', online: true, registered: !player.guest }, { name: `${aiDifficulty === 'perfect' && size === 3 ? 'Perfect' : aiDifficulty === 'easy' ? 'Easy' : 'Smart'} AI`, symbol: 'O', online: true, registered: false }], timerSeconds: 0, turnEndsAt: null };
   $('#queue-state').classList.add('hidden'); $('#game-panel').classList.remove('hidden'); renderMatch();
 }

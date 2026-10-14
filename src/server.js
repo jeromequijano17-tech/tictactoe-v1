@@ -461,7 +461,6 @@ function getSessionPlayer(sessionData) {
 async function createRoom(player, options = {}) {
   const previousCode = playerMatches.get(player.id);
   if (previousCode && rooms.get(previousCode)?.status !== 'completed') throw new Error('Finish or leave your current match first.');
-  if (previousCode) playerMatches.delete(player.id);
   const size = Number(options.size || 3);
   const mode = options.mode === 'ranked' ? 'ranked' : 'casual';
   if (![3, 4, 5].includes(size)) throw new Error('Board size must be 3, 4, or 5.');
@@ -471,7 +470,7 @@ async function createRoom(player, options = {}) {
   const room = {
     code: roomCode, matchId: insert.insertId, mode, size, game: createGame(size), players: new Map(), status: 'waiting',
     queue: Promise.resolve(), timer: null, timerSeconds: Math.min(120, Math.max(0, Number(options.timerSeconds ?? process.env.TURN_SECONDS) || 0)),
-    turnEndsAt: null, completedSaved: false,
+    turnEndsAt: null, completedSaved: false, rematchCode: null, rematchOf: null,
   };
   rooms.set(roomCode, room);
   try { await addPlayer(room, player); }
@@ -488,7 +487,6 @@ async function addPlayer(room, player) {
   if (room.players.size >= 2) throw new Error('This room is full.');
   const previousCode = playerMatches.get(player.id);
   if (previousCode && rooms.get(previousCode)?.status !== 'completed') throw new Error('Finish or leave your current match first.');
-  if (previousCode) playerMatches.delete(player.id);
   const symbol = room.players.size === 0 ? 'X' : 'O';
   const member = { ...player, symbol, online: true, socketIds: new Set() };
   const startsMatch = room.players.size === 1;
@@ -740,22 +738,28 @@ io.on('connection', (socket) => {
 
   socket.on('match:rematch', (_payload, ack = () => {}) => {
     const currentCode = playerMatches.get(player.id);
-    const currentRoom = rooms.get(currentCode);
+    let currentRoom = rooms.get(currentCode);
+    if (currentRoom?.rematchOf) currentRoom = rooms.get(currentRoom.rematchOf) || currentRoom;
     if (!currentRoom || currentRoom.status !== 'completed' || currentRoom.players.size !== 2) return ack({ ok: false, error: 'Rematch is unavailable.' });
     serialize(currentRoom, async () => {
+      if (currentRoom.rematchCode) {
+        const existing = rooms.get(currentRoom.rematchCode);
+        if (existing) return ack({ ok: true, code: existing.code, state: stateFor(existing) });
+      }
       const first = [...currentRoom.players.values()].find((candidate) => candidate.symbol === 'O');
       const second = [...currentRoom.players.values()].find((candidate) => candidate.symbol === 'X');
       const nextRoom = await createRoom(first, { mode: currentRoom.mode, size: currentRoom.size, timerSeconds: currentRoom.timerSeconds });
+      nextRoom.rematchOf = currentRoom.code;
+      currentRoom.rematchCode = nextRoom.code;
       await addPlayer(nextRoom, second);
-      const nextPlayer = nextRoom.players.get(player.id);
-        for (const previousPlayer of currentRoom.players.values()) {
-          const freshPlayer = nextRoom.players.get(previousPlayer.id);
-          for (const socketId of previousPlayer.socketIds) {
-            freshPlayer.socketIds.add(socketId);
-            io.sockets.sockets.get(socketId)?.join(nextRoom.code);
-          }
+      for (const previousPlayer of currentRoom.players.values()) {
+        const freshPlayer = nextRoom.players.get(previousPlayer.id);
+        for (const socketId of previousPlayer.socketIds) {
+          freshPlayer.socketIds.add(socketId);
+          io.sockets.sockets.get(socketId)?.join(nextRoom.code);
         }
-        sendState(nextRoom);
+      }
+      sendState(nextRoom);
       io.to(currentRoom.code).emit('match:rematch-created', { code: nextRoom.code });
       ack({ ok: true, code: nextRoom.code, state: stateFor(nextRoom) });
     }).catch((error) => ack({ ok: false, error: error.message }));
