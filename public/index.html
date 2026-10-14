@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f2f1e9">
+  <meta name="description" content="A quick, friendly place to play tic-tac-toe with friends or rivals.">
+  <title>Gridline — Tic-Tac-Toe</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/socket.io/socket.io.js" defer></script>
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#home" aria-label="Gridline home"><span class="brand-mark"><i></i><i></i><i></i><i></i></span><span>gridline<span class="brand-period">.</span></span></a>
+    <div class="topbar-right">
+      <span class="connection"><i id="connection-dot"></i><span id="connection-label">Connecting</span></span>
+      <button class="icon-button" id="sound-toggle" type="button" aria-label="Toggle sound" title="Toggle sound"><span id="sound-icon">♫</span></button>
+      <button class="icon-button" id="theme-toggle" type="button" aria-label="Toggle color theme" title="Toggle color theme">◐</button>
+      <button class="account-button" id="account-button" type="button"><span class="avatar-mini" id="avatar-mini">G</span><span id="account-name">Guest</span><span aria-hidden="true">⌄</span></button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <nav class="primary-nav" aria-label="Main navigation">
+      <button class="nav-link active" data-view="home">Play <span>01</span></button>
+      <button class="nav-link" data-view="leaderboard">Rankings <span>02</span></button>
+      <button class="nav-link" data-view="friends">Players <span>03</span></button>
+      <button class="nav-link" data-view="history">History <span>04</span></button>
+      <button class="nav-link admin-nav hidden" data-view="admin">Admin <span>05</span></button>
+    </nav>
+
+    <section id="home-view" class="view">
+      <div class="home-grid">
+        <div class="home-main">
+          <div class="eyebrow"><span class="eyebrow-line"></span> THE CLASSIC, CONNECTED</div>
+          <div class="intro-row">
+            <div><h1>Your move.<br><em>Your moment.</em></h1><p class="intro-copy">Find a rival, call a friend, or sharpen your strategy. The next square is yours.</p></div>
+            <div class="hero-stamp" aria-hidden="true"><span>3</span><b>×</b><span>3</span><i>EST. 2025</i></div>
+          </div>
+
+          <section class="lobby-panel" aria-labelledby="lobby-title">
+            <div class="section-heading"><div><span class="section-kicker">MATCH LOBBY</span><h2 id="lobby-title">Pick your game</h2></div><span class="lobby-index">A / 01</span></div>
+            <div class="settings-row">
+              <fieldset class="segmented"><legend>Board</legend><label><input type="radio" name="board-size" value="3" checked><span>3 × 3</span></label><label><input type="radio" name="board-size" value="4"><span>4 × 4</span></label><label><input type="radio" name="board-size" value="5"><span>5 × 5</span></label></fieldset>
+              <fieldset class="segmented mode-segment"><legend>Mode</legend><label><input type="radio" name="game-mode" value="casual" checked><span>Casual</span></label><label><input type="radio" name="game-mode" value="ranked"><span>Ranked</span></label></fieldset>
+              <label class="timer-select">Turn clock<select id="timer-select"><option value="0">Off</option><option value="15">15 sec</option><option value="30">30 sec</option><option value="60">60 sec</option></select></label>
+              <label class="timer-select">Practice AI<select id="ai-difficulty"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="perfect">Unbeatable</option></select></label>
+            </div>
+            <div class="action-grid">
+              <button class="action-tile quick-tile" id="quickplay-button" type="button"><span class="tile-icon">↗</span><span class="tile-title">Quick match</span><span class="tile-note">Find your next opponent</span><span class="tile-arrow">→</span></button>
+              <button class="action-tile invite-tile" id="create-room-button" type="button"><span class="tile-icon">⌁</span><span class="tile-title">Invite a friend</span><span class="tile-note">Make a private room</span><span class="tile-arrow">→</span></button>
+              <div class="join-tile"><label for="room-code">Have a room code?</label><div class="join-row"><input id="room-code" maxlength="8" autocomplete="off" placeholder="ENTER CODE" aria-label="Room code"><button id="join-room-button" type="button" aria-label="Join room">Join <span>→</span></button></div></div>
+              <button class="action-tile ai-tile" id="ai-button" type="button"><span class="tile-icon">✳</span><span class="tile-title">Practice solo</span><span class="tile-note">Play an adaptive opponent</span><span class="tile-arrow">→</span></button>
+            </div>
+            <p class="lobby-footnote"><span class="live-pip"></span> No account needed to play casually <span class="footnote-divider">/</span> Ranked matches require sign-in</p>
+          </section>
+
+          <section class="game-panel hidden" id="game-panel" aria-live="polite">
+            <div class="game-topline"><button id="back-lobby-button" class="back-button" type="button">← Lobby</button><span class="match-code" id="match-code"></span><button id="copy-invite-button" class="quiet-button" type="button">Copy invite</button></div>
+            <div class="match-heading"><div><span class="section-kicker" id="match-mode-label">CASUAL MATCH</span><h2 id="match-status">Waiting for a player…</h2></div><div class="turn-clock hidden" id="turn-clock"><span class="clock-ring">◷</span><span id="clock-value">00</span></div></div>
+            <div class="players-strip" id="players-strip"></div>
+            <div class="board-wrap"><div class="board" id="game-board" role="grid" aria-label="Tic-tac-toe board"></div><div class="win-banner hidden" id="win-banner"></div></div>
+            <div class="game-actions"><button class="primary-button hidden" id="rematch-button" type="button">Play again <span>↗</span></button><button class="secondary-button hidden" id="new-game-button" type="button">New game</button><button class="text-button hidden" id="report-button" type="button">Report player</button><span class="game-hint" id="game-hint">Waiting for the second player</span></div>
+            <div class="match-extras"><section class="chat-panel"><div class="extras-heading"><h3>Match chat</h3><button class="text-button" id="mute-chat-button" type="button" aria-pressed="false">Mute</button></div><div class="chat-log" id="chat-log" aria-live="polite"></div><form class="chat-form" id="chat-form"><input id="chat-input" maxlength="280" placeholder="Say something kind…" aria-label="Chat message"><button type="submit" aria-label="Send message">↑</button></form></section><section class="reaction-panel"><div class="extras-heading"><h3>Say it quick</h3></div><div class="reactions"><button type="button" data-reaction="😂" aria-label="Laugh">😂</button><button type="button" data-reaction="👏" aria-label="Clap">👏</button><button type="button" data-reaction="😎" aria-label="Cool">😎</button><button type="button" data-reaction="😮" aria-label="Surprised">😮</button></div><div class="reaction-toast" id="reaction-toast"></div></section></div>
+          </section>
+          <div class="queue-state hidden" id="queue-state"><span class="queue-spinner"></span><div><b id="queue-title">Finding an opponent</b><p>Looking for a good match…</p></div><button class="text-button" id="cancel-queue-button" type="button">Cancel</button></div>
+        </div>
+        <aside class="home-aside">
+          <div class="aside-heading"><span class="section-kicker">THE TOP 5</span><button class="text-button" data-view="leaderboard" type="button">Full table ↗</button></div>
+          <h2>In good company.</h2>
+          <div class="leader-list" id="home-leaderboard"><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
+          <div class="aside-rule"></div>
+          <div class="daily-note"><span class="daily-sun">✳</span><div><b>Daily missions</b><p>Short goals, a few extra XP, fresh each day.</p></div></div>
+          <div class="mission-list" id="daily-missions"></div>
+          <div class="practice-note"><span>✳</span>Practice against an unbeatable AI any time.</div>
+          <button class="outline-button full-width" id="profile-button" type="button">Your player card <span>↗</span></button>
+          <button class="outline-button full-width watch-button" id="watch-match-button" type="button">Watch a room <span>↗</span></button>
+          <div class="side-art" aria-hidden="true"><div class="side-grid"><span>×</span><span></span><span>○</span><span></span><span>×</span><span></span><span>○</span><span></span><span>×</span></div><p>ONE MORE<br>ROUND?</p></div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="leaderboard-view" class="view hidden"><div class="page-title-row"><div><span class="section-kicker">THE SCOREBOARD</span><h1>Rankings<span class="brand-period">.</span></h1><p>Good games leave a mark. Ranked wins add 16 points; losses subtract 16.</p></div><span class="page-count">02 / 05</span></div><div class="data-panel"><div class="table-tools"><div class="period-tabs" role="group" aria-label="Leaderboard period"><button class="selected" data-period="all" type="button">All time</button><button data-period="day" type="button">Today</button><button data-period="week" type="button">Week</button><button data-period="month" type="button">Month</button></div><button id="refresh-leaderboard" class="quiet-button" type="button">↻ Refresh</button></div><div class="table-scroll"><table><thead><tr><th>#</th><th>Player</th><th>Level</th><th>Wins</th><th>W / L / D</th><th>Rating</th></tr></thead><tbody id="leaderboard-body"><tr><td colspan="6">Loading rankings…</td></tr></tbody></table></div></div></section>
+
+    <section id="friends-view" class="view hidden"><div class="page-title-row"><div><span class="section-kicker">YOUR CIRCLE</span><h1>Find your people<span class="brand-period">.</span></h1><p>Send a friend request, then make a private room to challenge them.</p></div><span class="page-count">03 / 05</span></div><form class="search-bar" id="player-search-form"><span>⌕</span><input id="player-search" minlength="2" maxlength="24" placeholder="Search by username" aria-label="Search players"><button type="submit">Search <span>→</span></button></form><div id="search-results" class="people-list"></div><div class="section-heading friends-heading"><div><span class="section-kicker">YOUR FRIENDS</span><h2>Good games start here</h2></div><button id="refresh-friends" class="quiet-button" type="button">↻ Refresh</button></div><div id="friends-list" class="people-list"></div></section>
+
+    <section id="history-view" class="view hidden"><div class="page-title-row"><div><span class="section-kicker">YOUR RECORD</span><h1>Match history<span class="brand-period">.</span></h1><p>Every close call, clever block, and last-square win.</p></div><span class="page-count">04 / 05</span></div><div class="stats-strip" id="profile-stats"></div><div class="data-panel"><div class="table-tools"><span>RECENT MATCHES</span><button id="history-more" class="quiet-button" type="button">Load more ↓</button></div><div class="table-scroll"><table><thead><tr><th>Result</th><th>Opponent</th><th>Mode</th><th>Date</th><th>Replay</th></tr></thead><tbody id="history-body"><tr><td colspan="5">Sign in to see your match history.</td></tr></tbody></table></div></div></section>
+
+    <section id="admin-view" class="view hidden"><div class="page-title-row"><div><span class="section-kicker">OPERATIONS</span><h1>Control room<span class="brand-period">.</span></h1><p>Account and report moderation.</p></div><span class="page-count">05 / 05</span></div><div class="admin-stats" id="admin-stats"></div><div class="section-heading"><div><span class="section-kicker">PLAYER REPORTS</span><h2>Needs a look</h2></div></div><div class="people-list" id="admin-reports"></div><div class="section-heading friends-heading"><div><span class="section-kicker">ACCOUNTS</span><h2>Player list</h2></div><button class="quiet-button" id="refresh-admin" type="button">↻ Refresh</button></div><div class="people-list" id="admin-users"></div></section>
+
+    <footer><span>GRIDLINE / GOOD GAMES, GOOD COMPANY</span><span>© 2025 GRIDLINE</span><button id="logout-button" class="text-button hidden" type="button">Sign out</button></footer>
+  </main>
+
+  <dialog id="auth-dialog" class="modal"><form method="dialog" class="modal-close-form"><button class="modal-close" aria-label="Close">×</button></form><div class="modal-head"><span class="section-kicker">JOIN THE GAME</span><h2 id="auth-title">Play under your name.</h2><p id="auth-description">An account saves your stats, history, and ranking.</p></div><div class="auth-tabs"><button type="button" data-auth-mode="login" class="selected">Sign in</button><button type="button" data-auth-mode="register">Create account</button></div><form id="auth-form" class="form-stack"><label class="register-only hidden">Username<input name="username" minlength="3" maxlength="24" autocomplete="username" placeholder="e.g. cornerkick"></label><label id="login-label">Username or email<input name="login" autocomplete="username" placeholder="Your account name"></label><label class="register-only hidden">Email<input name="email" type="email" autocomplete="email" placeholder="you@example.com"></label><label>Password<input name="password" type="password" minlength="10" maxlength="72" autocomplete="current-password" placeholder="At least 10 characters"></label><label class="link-guest-option register-only hidden"><input name="linkGuest" type="checkbox" value="true"><span>Bring my completed guest match history into this account</span></label><button class="primary-button full-width" type="submit" id="auth-submit">Sign in <span>↗</span></button><p class="form-error" id="auth-error" aria-live="polite"></p></form><button id="forgot-password-button" type="button" class="text-button guest-link">Forgot your password?</button><button id="continue-guest" type="button" class="text-button guest-link">Keep playing as a guest</button></dialog>
+
+  <dialog id="forgot-dialog" class="modal"><form method="dialog" class="modal-close-form"><button class="modal-close" aria-label="Close">×</button></form><div class="modal-head"><span class="section-kicker">ACCOUNT RECOVERY</span><h2>Get back in.</h2><p>We'll email a one-time reset link if that address belongs to an account.</p></div><form id="forgot-form" class="form-stack"><label>Email<input name="email" type="email" required autocomplete="email" placeholder="you@example.com"></label><button class="primary-button full-width" type="submit">Send reset link <span>↗</span></button><p class="form-error" id="forgot-error" aria-live="polite"></p></form></dialog>
+  <dialog id="reset-dialog" class="modal"><form method="dialog" class="modal-close-form"><button class="modal-close" aria-label="Close">×</button></form><div class="modal-head"><span class="section-kicker">ACCOUNT RECOVERY</span><h2>Choose a new password.</h2><p>This one-time link expires after one hour.</p></div><form id="reset-form" class="form-stack"><label>New password<input name="password" type="password" minlength="10" maxlength="72" required autocomplete="new-password" placeholder="At least 10 characters"></label><button class="primary-button full-width" type="submit">Reset password <span>↗</span></button><p class="form-error" id="reset-error" aria-live="polite"></p></form></dialog>
+
+  <dialog id="report-dialog" class="modal"><form method="dialog" class="modal-close-form"><button class="modal-close" aria-label="Close">×</button></form><div class="modal-head"><span class="section-kicker">KEEP IT A GOOD GAME</span><h2>Report a player.</h2><p>Reports are reviewed by an administrator.</p></div><form id="report-form" class="form-stack"><label>Reason<select name="reason"><option value="abuse">Abusive behavior</option><option value="cheating">Cheating</option><option value="inappropriate_name">Inappropriate name</option><option value="other">Other</option></select></label><label>Details<textarea name="details" maxlength="500" rows="3" placeholder="Optional context"></textarea></label><button class="primary-button full-width" type="submit">Send report <span>↗</span></button><p class="form-error" id="report-error" aria-live="polite"></p></form></dialog>
+
+  <dialog id="profile-dialog" class="modal profile-modal"><form method="dialog" class="modal-close-form"><button class="modal-close" aria-label="Close">×</button></form><div class="modal-head"><span class="section-kicker">PLAYER CARD</span><h2 id="profile-name">Your player card</h2><p id="profile-detail">Guest matches are casual and do not affect rankings.</p></div><div id="profile-card-content" class="profile-card-content"></div><div id="profile-achievements" class="profile-achievements"></div><button id="profile-auth-button" class="primary-button full-width" type="button">Create an account <span>↗</span></button></dialog>
+
+  <dialog id="replay-dialog" class="modal replay-modal"><form method="dialog" class="modal-close-form"><button class="modal-close" aria-label="Close">×</button></form><div class="modal-head"><span class="section-kicker">MOVE BY MOVE</span><h2>Match replay.</h2><p id="replay-caption"></p></div><div class="replay-board" id="replay-board"></div><div class="replay-controls"><button id="replay-prev" type="button" aria-label="Previous move">←</button><span id="replay-step">Start</span><button id="replay-next" type="button" aria-label="Next move">→</button><button id="replay-play" type="button">Play</button></div></dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

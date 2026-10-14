@@ -1,0 +1,37 @@
+{
+  "name": "tictactoe-online",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Server-authoritative online multiplayer tic-tac-toe",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test",
+    "test:integration": "RUN_DB_TESTS=1 node --test test/integration.test.js",
+    "db:init": "node src/db/init.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-mysql-session": "^3.0.3",
+    "express-rate-limit": "^7.5.0",
+    "express-session": "^1.18.1",
+    "helmet": "^8.0.0",
+    "mysql2": "^3.24.6",
+    "nodemailer": "^10.1.1",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.4",
+    "supertest": "^7.3.1"
+  },
+  "overrides": {
+    "mysql2": "^3.24.6"
+  }
+}
